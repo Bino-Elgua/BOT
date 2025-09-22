@@ -259,8 +259,8 @@ if __name__ == "__main__":
     settings = get_settings()
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",  # nosec B104 S104
-        port=8000,
+        host=settings.host,
+        port=settings.port,
         log_level=settings.log_level.lower(),
         reload=settings.debug,
         access_log=True

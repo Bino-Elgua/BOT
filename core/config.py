@@ -68,6 +68,19 @@ class Settings(BaseSettings):
     # Health check configuration
     health_check_timeout: float = 0.1  # 100ms baseline
 
+    # Server configuration
+    host: str = Field(
+        default="127.0.0.1",
+        description=(
+            "Host to bind server to. Use 0.0.0.0 for all interfaces "
+            "(WARNING: Security risk)"
+        )
+    )
+    port: int = Field(
+        default=8000,
+        description="Port to bind server to"
+    )
+
     # Logging configuration
     log_level: str = "INFO"
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -87,6 +100,18 @@ class Settings(BaseSettings):
                 )
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long")
+        return v
+
+    @validator("host")
+    def validate_host(self, v):
+        """Validate host binding - warn about security implications."""
+        if v == "0.0.0.0":  # nosec S104
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "⚠️  SECURITY WARNING: Binding to 0.0.0.0 exposes the application "
+                "to all network interfaces. Ensure proper firewall configuration."
+            )
         return v
 
     @validator("cors_origins")
