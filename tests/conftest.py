@@ -3,10 +3,11 @@ Test configuration and fixtures.
 """
 import asyncio
 import os
+
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
 # Set test environment
 os.environ["ENVIRONMENT"] = "testing"
