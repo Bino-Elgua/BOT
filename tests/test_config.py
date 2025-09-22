@@ -2,7 +2,9 @@
 Test configuration management.
 """
 import os
+
 import pytest
+
 from core.config import get_settings, reset_settings
 
 
@@ -19,7 +21,7 @@ def test_secret_key_validation():
     """Test secret key validation."""
     # Reset to get fresh settings
     reset_settings()
-    
+
     # Should work with test environment
     settings = get_settings()
     assert len(settings.secret_key) >= 32
@@ -29,7 +31,7 @@ def test_cors_validation_development():
     """Test CORS validation in development."""
     os.environ["ENVIRONMENT"] = "development"
     reset_settings()
-    
+
     settings = get_settings()
     # Should allow any origins in development
     assert isinstance(settings.cors_origins, list)
@@ -71,7 +73,7 @@ def test_environment_variables(env_var, expected):
     """Test environment variable handling."""
     reset_settings()
     settings = get_settings()
-    
+
     if env_var == "DEBUG":
         assert settings.debug == expected
     elif env_var == "LOG_LEVEL":

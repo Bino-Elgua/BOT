@@ -2,22 +2,22 @@
 Main FastAPI application with secure configuration.
 Implements all security requirements including CORS, rate limiting, and error handling.
 """
-import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Any
-from fastapi import FastAPI, Request, HTTPException, status
+from typing import Any, Dict
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-import uvicorn
 
-from core.config import get_settings
-from app.services.redis_service import redis_manager, close_redis
-from app.services.rate_limiter import rate_limiter
 from app.routers import health, websocket
+from app.services.rate_limiter import rate_limiter
+from app.services.redis_service import close_redis, redis_manager
+from core.config import get_settings
 
 # Configure logging
 logging.basicConfig(
@@ -32,34 +32,34 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown."""
     # Startup
     logger.info("Starting BOT application...")
-    
+
     try:
         # Initialize Redis connection pool
         await redis_manager.initialize()
         logger.info("Redis connection pool initialized")
-        
+
         # Pre-load rate limiter script
         await rate_limiter._ensure_script_loaded()
         logger.info("Rate limiter initialized")
-        
+
         logger.info("Application startup completed")
-        
+
     except Exception as e:
         logger.error(f"Failed to start application: {e}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down BOT application...")
-    
+
     try:
         # Close Redis connections
         await close_redis()
         logger.info("Redis connections closed")
-        
+
         logger.info("Application shutdown completed")
-        
+
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
-    
+
     # Create FastAPI app
     app = FastAPI(
         title=settings.app_name,
@@ -77,26 +77,26 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
     )
-    
+
     # Security middleware
     _configure_security_middleware(app, settings)
-    
+
     # Request middleware
     _configure_request_middleware(app)
-    
+
     # Error handlers
     _configure_error_handlers(app)
-    
+
     # Include routers
     app.include_router(health.router)
     app.include_router(websocket.router)
-    
+
     return app
 
 
 def _configure_security_middleware(app: FastAPI, settings):
     """Configure security-related middleware."""
-    
+
     # CORS middleware with secure configuration
     app.add_middleware(
         CORSMiddleware,
@@ -106,7 +106,7 @@ def _configure_security_middleware(app: FastAPI, settings):
         allow_headers=settings.cors_allow_headers,
         max_age=86400,  # 24 hours
     )
-    
+
     # Trusted host middleware for production
     if not settings.debug:
         app.add_middleware(
@@ -117,7 +117,7 @@ def _configure_security_middleware(app: FastAPI, settings):
 
 def _configure_request_middleware(app: FastAPI):
     """Configure request processing middleware."""
-    
+
     @app.middleware("http")
     async def rate_limiting_middleware(request: Request, call_next):
         """Global rate limiting middleware."""
@@ -127,14 +127,14 @@ def _configure_request_middleware(app: FastAPI):
             forwarded_for = request.headers.get("X-Forwarded-For")
             if forwarded_for:
                 client_ip = forwarded_for.split(",")[0].strip()
-            
+
             # Skip rate limiting for health checks
             if request.url.path.startswith("/health"):
                 return await call_next(request)
-            
+
             # Check rate limit
             rate_check = await rate_limiter.is_allowed(f"http:{client_ip}")
-            
+
             if not rate_check["allowed"]:
                 logger.warning(f"Rate limit exceeded for {client_ip}")
                 return JSONResponse(
@@ -152,30 +152,30 @@ def _configure_request_middleware(app: FastAPI):
                         "X-RateLimit-Reset": str(int(rate_check["reset_time"]))
                     }
                 )
-            
+
             # Process request
             start_time = time.time()
             response = await call_next(request)
             process_time = time.time() - start_time
-            
+
             # Add rate limit headers to response
             response.headers["X-RateLimit-Limit"] = str(rate_check["limit"])
             response.headers["X-RateLimit-Remaining"] = str(rate_check["remaining"])
             response.headers["X-RateLimit-Reset"] = str(int(rate_check["reset_time"]))
             response.headers["X-Process-Time"] = str(round(process_time * 1000, 2))
-            
+
             return response
-            
+
         except Exception as e:
             logger.error(f"Rate limiting middleware error: {e}")
             # Continue processing on middleware error
             return await call_next(request)
-    
+
     @app.middleware("http")
     async def security_headers_middleware(request: Request, call_next):
         """Add security headers to all responses."""
         response = await call_next(request)
-        
+
         # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -188,15 +188,17 @@ def _configure_request_middleware(app: FastAPI):
             "img-src 'self' data: https:; "
             "connect-src 'self' ws: wss:;"
         )
-        
+
         return response
 
 
 def _configure_error_handlers(app: FastAPI):
     """Configure global error handlers."""
-    
+
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
         """Handle request validation errors."""
         logger.warning(f"Validation error for {request.url}: {exc}")
         return JSONResponse(
@@ -207,7 +209,7 @@ def _configure_error_handlers(app: FastAPI):
                 "body": str(exc.body) if hasattr(exc, 'body') else None
             }
         )
-    
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         """Handle HTTP exceptions."""
@@ -218,7 +220,7 @@ def _configure_error_handlers(app: FastAPI):
                 "status_code": exc.status_code
             }
         )
-    
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         """Handle unexpected exceptions."""
@@ -257,8 +259,8 @@ if __name__ == "__main__":
     settings = get_settings()
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=settings.host,
+        port=settings.port,
         log_level=settings.log_level.lower(),
         reload=settings.debug,
         access_log=True
