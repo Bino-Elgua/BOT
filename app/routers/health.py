@@ -115,7 +115,7 @@ async def health_check() -> Dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=error_response
-        )
+        ) from e
 
 
 @router.get("/liveness")
@@ -182,7 +182,7 @@ async def readiness_check() -> Dict[str, Any]:
                 "error": str(e),
                 "timestamp": start_time
             }
-        )
+        ) from e
 
 
 @router.get("/detailed")
@@ -232,4 +232,4 @@ async def detailed_health_check() -> Dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": str(e)}
-        )
+        ) from e

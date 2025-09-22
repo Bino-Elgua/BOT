@@ -196,7 +196,9 @@ def _configure_error_handlers(app: FastAPI):
     """Configure global error handlers."""
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
         """Handle request validation errors."""
         logger.warning(f"Validation error for {request.url}: {exc}")
         return JSONResponse(
@@ -257,7 +259,7 @@ if __name__ == "__main__":
     settings = get_settings()
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104 S104
         port=8000,
         log_level=settings.log_level.lower(),
         reload=settings.debug,

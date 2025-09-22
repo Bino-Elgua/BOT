@@ -63,7 +63,8 @@ class RedisConnectionManager:
                 # Test connection
                 await self._redis.ping()
                 logger.info(
-                    f"Redis connection pool initialized with max {settings.redis_max_connections} connections"
+                    f"Redis connection pool initialized with max "
+                    f"{settings.redis_max_connections} connections"
                 )
 
             except Exception as e:
@@ -105,9 +106,13 @@ class RedisConnectionManager:
 
             # Get connection pool info
             pool_info = {
-                "available_connections": self._pool.available_connections if self._pool else 0,
+                "available_connections": (
+                    self._pool.available_connections if self._pool else 0
+                ),
                 "max_connections": self._pool.max_connections if self._pool else 0,
-                "created_connections": self._pool.created_connections if self._pool else 0,
+                "created_connections": (
+                    self._pool.created_connections if self._pool else 0
+                ),
             }
 
             return {

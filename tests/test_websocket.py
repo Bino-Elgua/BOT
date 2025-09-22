@@ -74,12 +74,16 @@ def test_websocket_invalid_client_id():
     client = TestClient(app)
 
     # Empty client ID should be rejected
-    with pytest.raises(Exception), client.websocket_connect("/ws/"):
+    with pytest.raises(
+        (ValueError, ConnectionError, RuntimeError)
+    ), client.websocket_connect("/ws/"):
         pass
 
     # Very long client ID should be rejected
     long_id = "x" * 200
-    with pytest.raises(Exception), client.websocket_connect(f"/ws/{long_id}"):
+    with pytest.raises(
+        (ValueError, ConnectionError, RuntimeError)
+    ), client.websocket_connect(f"/ws/{long_id}"):
         pass
 
 

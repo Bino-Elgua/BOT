@@ -82,7 +82,8 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(
                     "SECRET_KEY must be set in production. "
-                    "Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                    "Generate with: python -c 'import secrets; "
+                    "print(secrets.token_urlsafe(32))'"
                 )
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long")

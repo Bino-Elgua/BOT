@@ -186,7 +186,9 @@ class RateLimiter:
                 "oldest_request": oldest[0][1] if oldest else None,
                 "newest_request": newest[0][1] if newest else None,
                 "window_start": oldest[0][1] if oldest else None,
-                "window_end": (oldest[0][1] + get_settings().rate_limit_window) if oldest else None
+                "window_end": (
+                    oldest[0][1] + get_settings().rate_limit_window
+                ) if oldest else None
             }
 
             return stats

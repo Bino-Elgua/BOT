@@ -34,7 +34,9 @@ def test_configuration():
         sys.modules['pydantic.fields'] = pydantic
 
         # Test core config can be imported
-        exec(open('core/config.py').read(), {'__name__': '__main__'})
+        with open('core/config.py', 'r', encoding='utf-8') as f:
+            config_content = f.read()
+        exec(config_content, {'__name__': '__main__'})  # nosec B102 S102
 
     except Exception:
         return False

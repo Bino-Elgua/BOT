@@ -61,7 +61,9 @@ class ConnectionManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to establish WebSocket connection for {client_id}: {e}")
+            logger.error(
+                f"Failed to establish WebSocket connection for {client_id}: {e}"
+            )
             return False
 
     def disconnect(self, client_id: str):
@@ -75,7 +77,8 @@ class ConnectionManager:
             logger.info(
                 f"WebSocket disconnected for {client_id}. "
                 f"Duration: {duration:.2f}s, "
-                f"Messages: {metadata['messages_received']}/{metadata['messages_sent']}, "
+                f"Messages: {metadata['messages_received']}/"
+                f"{metadata['messages_sent']}, "
                 f"Bytes: {metadata['bytes_received']}/{metadata['bytes_sent']}"
             )
             del self.connection_metadata[client_id]
@@ -215,7 +218,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     if len(message_bytes) > settings.websocket_max_message_size:
                         logger.warning(
                             f"Message too large from {client_id}: "
-                            f"{len(message_bytes)} > {settings.websocket_max_message_size} bytes"
+                            f"{len(message_bytes)} > "
+                            f"{settings.websocket_max_message_size} bytes"
                         )
 
                         await websocket.send_text(json.dumps({
@@ -232,7 +236,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         message_text = message_bytes
 
                     # Rate limiting check
-                    rate_check = await rate_limiter.is_allowed(f"ws_message:{client_id}")
+                    rate_check = await rate_limiter.is_allowed(
+                        f"ws_message:{client_id}"
+                    )
                     if not rate_check["allowed"]:
                         await websocket.send_text(json.dumps({
                             "error": "Rate limit exceeded",
