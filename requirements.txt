@@ -1,41 +1,41 @@
 # Core web framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
 
 # WebSocket support
-websockets==12.0
+websockets>=12.0
 
 # Database and caching
-asyncpg==0.29.0
-redis==5.0.1
+asyncpg>=0.29.0
+redis>=5.0.1
 
 # Configuration and validation
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
 
 # Security
-python-multipart==0.0.6
-cryptography==46.0.1
+python-multipart>=0.0.6
+cryptography>=46.0.1
 
 # System monitoring
-psutil==5.9.6
+psutil>=5.9.6
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-httpx==0.25.2
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+httpx>=0.25.0
 
 # Security analysis
-bandit[toml]==1.7.5
-safety==2.3.5
-pip-audit==2.6.1
+bandit[toml]>=1.7.5
+safety>=2.3.0
+pip-audit>=2.6.0
 
 # Code quality
-ruff==0.1.6
-black==23.11.0
-isort==5.12.0
-mypy==1.7.1
+ruff>=0.1.6
+black>=23.11.0
+isort>=5.12.0
+mypy>=1.7.1
 
 # Development utilities
-python-dotenv==1.0.0
+python-dotenv>=1.0.0
