@@ -1,0 +1,280 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  security-analysis:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run Bandit security analysis
+      run: |
+        bandit -r app/ core/ -f json -o bandit-report.json || true
+        bandit -r app/ core/ -f txt
+    
+    - name: Check for high/critical security issues
+      run: |
+        python -c "
+        import json
+        import sys
+        
+        try:
+            with open('bandit-report.json', 'r') as f:
+                report = json.load(f)
+            
+            high_issues = [r for r in report.get('results', []) if r.get('issue_severity') in ['HIGH', 'MEDIUM']]
+            
+            if high_issues:
+                print(f'SECURITY ALERT: Found {len(high_issues)} medium+ severity issues')
+                for issue in high_issues:
+                    print(f\"- {issue['test_name']}: {issue['issue_text']} (Line {issue['line_number']})\")
+                sys.exit(1)
+            else:
+                print('✅ No medium+ severity security issues found')
+        except FileNotFoundError:
+            print('⚠️ Bandit report not found, allowing pipeline to continue')
+        "
+    
+    - name: Run Safety vulnerability scan
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check
+    
+    - name: Run pip-audit
+      run: |
+        pip-audit --format=json --output=pip-audit-report.json || true
+        pip-audit
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+          pip-audit-report.json
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run Ruff linting
+      run: |
+        ruff check app/ core/ tests/ --output-format=github
+    
+    - name: Run Black formatting check
+      run: |
+        black --check app/ core/ tests/
+    
+    - name: Run isort import sorting check
+      run: |
+        isort --check-only app/ core/ tests/
+    
+    - name: Run MyPy type checking
+      run: |
+        mypy app/ core/ --ignore-missing-imports
+
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests with coverage
+      env:
+        DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+        REDIS_URL: redis://localhost:6379/0
+        SECRET_KEY: test-secret-key-for-testing-only-32-chars
+        ENVIRONMENT: testing
+      run: |
+        pytest tests/ -v --cov=app --cov=core --cov-report=xml --cov-report=html
+    
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: |
+          coverage.xml
+          htmlcov/
+
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [security-analysis, code-quality, tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  security-comment:
+    name: Security Status Comment
+    runs-on: ubuntu-latest
+    needs: [security-analysis]
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Download security reports
+      uses: actions/download-artifact@v3
+      with:
+        name: security-reports
+    
+    - name: Generate security comment
+      id: security-comment
+      run: |
+        echo "## 🔐 Security Analysis Results" > comment.md
+        echo "" >> comment.md
+        
+        # Bandit results
+        if [ -f bandit-report.json ]; then
+          python -c "
+          import json
+          
+          with open('bandit-report.json', 'r') as f:
+              report = json.load(f)
+          
+          total = len(report.get('results', []))
+          high = len([r for r in report.get('results', []) if r.get('issue_severity') == 'HIGH'])
+          medium = len([r for r in report.get('results', []) if r.get('issue_severity') == 'MEDIUM'])
+          low = len([r for r in report.get('results', []) if r.get('issue_severity') == 'LOW'])
+          
+          print(f'### Bandit Security Scan')
+          print(f'- **Total Issues**: {total}')
+          print(f'- **High Severity**: {high} 🔴')
+          print(f'- **Medium Severity**: {medium} 🟡')
+          print(f'- **Low Severity**: {low} 🟢')
+          print()
+          
+          if high > 0 or medium > 0:
+              print('⚠️ **Action Required**: Medium+ severity security issues detected')
+          else:
+              print('✅ **Passed**: No medium+ severity security issues found')
+          " >> comment.md
+        fi
+        
+        echo "" >> comment.md
+        echo "### Next Steps" >> comment.md
+        echo "- Review security reports in the Actions artifacts" >> comment.md
+        echo "- Address any medium+ severity findings before merging" >> comment.md
+        echo "- Ensure all secrets use 🔑 placeholders" >> comment.md
+    
+    - name: Comment on PR
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const comment = fs.readFileSync('comment.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
