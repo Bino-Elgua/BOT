@@ -38,6 +38,8 @@ jobs:
     - name: Check for high/critical security issues
       run: |
         python -c "
+        import textwrap
+        code = textwrap.dedent('''
         import json
         import sys
         
@@ -48,14 +50,16 @@ jobs:
             high_issues = [r for r in report.get('results', []) if r.get('issue_severity') in ['HIGH', 'MEDIUM']]
             
             if high_issues:
-                print(f'SECURITY ALERT: Found {len(high_issues)} medium+ severity issues')
+                print('SECURITY ALERT: Found {} medium+ severity issues'.format(len(high_issues)))
                 for issue in high_issues:
-                    print(f\"- {issue['test_name']}: {issue['issue_text']} (Line {issue['line_number']})\")
+                    print('- {}: {} (Line {})'.format(issue['test_name'], issue['issue_text'], issue['line_number']))
                 sys.exit(1)
             else:
                 print('✅ No medium+ severity security issues found')
         except FileNotFoundError:
             print('⚠️ Bandit report not found, allowing pipeline to continue')
+        ''')
+        exec(code)
         "
     
     - name: Run Safety vulnerability scan
